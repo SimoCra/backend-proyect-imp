@@ -29,31 +29,34 @@ export function loadApp() {
   const app = express();
 
   // --- CORS ---
-  // Orígenes permitidos
   const allowedOrigins = [
     'http://localhost:5173',
     'https://frontend-proyect-production.up.railway.app'
   ];
 
-  app.use(cors({
+  const corsOptions = {
     origin: function(origin, callback) {
-      // Permite requests sin origin (como Postman)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = 'La política CORS no permite acceso desde este origen.';
-        return callback(new Error(msg), false);
+      if (!origin) return callback(null, true); // Postman u otras herramientas
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error('CORS Error: Origen no permitido'));
       }
-      return callback(null, true);
     },
-    credentials: true // permite cookies y headers de auth
-  }));
+    credentials: true,
+    methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization','X-Requested-With','Accept']
+  };
+
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions)); // Responde a todos los preflights
 
   // --- Logger HTTP ---
   app.use(morgan('dev'));
 
   // --- Seguridad con Helmet ---
   app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: false, // evitar conflictos con React y APIs externas
     hidePoweredBy: true,
     frameguard: { action: 'deny' },
     hsts: { maxAge: 31536000, includeSubDomains: true },
@@ -86,7 +89,9 @@ export function loadApp() {
   // --- Middleware global de errores ---
   app.use((err, req, res, next) => {
     logger.error(`❌ Error en ${req.method} ${req.url} - ${err.message}`);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    const status = err.status || 500;
+    const message = err.message || 'Error interno del servidor';
+    res.status(status).json({ error: message });
   });
 
   return app;

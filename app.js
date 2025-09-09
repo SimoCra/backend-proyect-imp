@@ -3,11 +3,10 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
-import path from 'path';
-import cookieParser from 'cookie-parser';
-import morgan from 'morgan';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import cookieParser from 'cookie-parser';
+import morgan from 'morgan';
 import logger from './utils/logger.js'; 
 
 // Rutas
@@ -19,7 +18,7 @@ import authDashboard from './routes/authDashboard.routes.js';
 import ordersRoutes from './routes/orders.routes.js';
 import categoriesAdminRoutes from './routes/categoriesAdmin.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
-import contact from './routes/contact.routes.js'
+import contact from './routes/contact.routes.js';
 
 dotenv.config();
 
@@ -29,16 +28,30 @@ const __dirname = dirname(__filename);
 export function loadApp() {
   const app = express();
 
-  // CORS
-  app.use(cors({ 
-    origin: 'http://localhost:5173',
-    credentials: true 
+  // --- CORS ---
+  // Orígenes permitidos
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://frontend-proyect-production.up.railway.app'
+  ];
+
+  app.use(cors({
+    origin: function(origin, callback) {
+      // Permite requests sin origin (como Postman)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = 'La política CORS no permite acceso desde este origen.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true // permite cookies y headers de auth
   }));
 
-  // HTTP logger
+  // --- Logger HTTP ---
   app.use(morgan('dev'));
 
-  // Helmet
+  // --- Seguridad con Helmet ---
   app.use(helmet({
     contentSecurityPolicy: false,
     hidePoweredBy: true,
@@ -48,17 +61,16 @@ export function loadApp() {
     noSniff: true,
     referrerPolicy: { policy: 'no-referrer' }
   }));
+  logger.info('🛡️ Helmet security middlewares aplicados');
 
-  logger.info('🛡️  Helmet security middlewares aplicados');
-  logger.info('🔐 Protecciones: hidePoweredBy, frameguard, hsts, xssFilter, noSniff, referrerPolicy');
-
+  // --- Body parser y cookies ---
   app.use(bodyParser.json());
   app.use(cookieParser());
 
-  // Static files
+  // --- Archivos estáticos ---
   app.use('/uploads', express.static(join(__dirname, '/uploads')));
 
-  // Rutas
+  // --- Rutas ---
   app.use('/api/auth', authRoutes);
   app.use('/api/user', userRoutes);
   app.use('/api/products', productsRoutes);
@@ -67,11 +79,11 @@ export function loadApp() {
   app.use('/api/orders', ordersRoutes);
   app.use('/api/admin/categories', categoriesAdminRoutes);
   app.use('/api/notifications', notificationRoutes);
-  app.use('/contact-us', contact)
+  app.use('/contact-us', contact);
 
   logger.info('🚀 App cargada con todas las rutas y middlewares.');
 
-  // Middleware global de errores
+  // --- Middleware global de errores ---
   app.use((err, req, res, next) => {
     logger.error(`❌ Error en ${req.method} ${req.url} - ${err.message}`);
     res.status(500).json({ error: 'Error interno del servidor' });
